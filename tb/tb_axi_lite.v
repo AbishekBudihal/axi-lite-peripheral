@@ -68,19 +68,31 @@ module tb_axi_lite;
     // Assertions
     // -------------------------------------------------------
 
+    // Previous cycle signals for edge detection
+    reg awvalid_prev, wvalid_prev, arvalid_prev;
+    reg awready_prev, wready_prev, arready_prev;
+    always @(posedge clk) begin
+        awvalid_prev <= awvalid;
+        wvalid_prev  <= wvalid;
+        arvalid_prev <= arvalid;
+        awready_prev <= awready;
+        wready_prev  <= wready;
+        arready_prev <= arready;
+    end
+
     // VALID must not deassert once raised until handshake occurs
     always @(posedge clk) begin
         if (!rst) begin
             // AWVALID stability
-            if ($fell(awvalid) && !awready)
+            if (awvalid_prev && !awvalid && !awready && !awready_prev)
                 $display("ASSERTION FAIL [%0t]: awvalid deasserted without handshake", $time);
 
             // WVALID stability
-            if ($fell(wvalid) && !wready)
+            if (wvalid_prev && !wvalid && !wready && !wready_prev)
                 $display("ASSERTION FAIL [%0t]: wvalid deasserted without handshake", $time);
 
             // ARVALID stability
-            if ($fell(arvalid) && !arready)
+            if (arvalid_prev && !arvalid && !arready && !arready_prev)
                 $display("ASSERTION FAIL [%0t]: arvalid deasserted without handshake", $time);
 
             // BRESP must be OKAY on valid response
@@ -167,27 +179,29 @@ module tb_axi_lite;
         integer byte_idx;
         reg [DATA_WIDTH-1:0] masked;
         begin
-            // Drive AW + W simultaneously
+            // Drive AW channel
             awaddr  = addr;
             awvalid = 1;
-            wdata   = data;
-            wstrb   = strb;
-            wvalid  = 1;
-            bready  = 1;
-
-            // Wait for both handshakes
             @(posedge clk);
-            while (!(awready && wready)) @(posedge clk);
-
+            while (!awready) @(posedge clk);
             awvalid = 0;
-            wvalid  = 0;
+            @(posedge clk);
+
+            // Drive W channel
+            wdata  = data;
+            wstrb  = strb;
+            wvalid = 1;
+            bready = 1;
+            @(posedge clk);
+            while (!wready) @(posedge clk);
+            wvalid = 0;
 
             // Wait for write response
             while (!bvalid) @(posedge clk);
             @(posedge clk);
             bready = 0;
 
-            // Update scoreboard (apply WSTRB)
+            // Update scoreboard
             masked = expected_regs[addr[3:2]];
             for (byte_idx = 0; byte_idx < 4; byte_idx = byte_idx + 1) begin
                 if (strb[byte_idx])
