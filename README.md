@@ -39,79 +39,91 @@ RTL structure, and verifiability.
 
 ---
 
-## Project Structure
-
-```text
+## Repository Structure
+```
 axi-lite-peripheral/
 ├── rtl/
-│   └── axi_lite_slave.v        # AXI Lite slave RTL
+│   └── axi_lite_slave.v       # AXI4-Lite slave RTL
 ├── tb/
-│   └── tb_axi_lite.v           # Testbench
-├── waveforms/
-│   └── axi.vcd                 # Generated simulation waveforms
-├── sim                         # Compiled simulation binary
+│   └── tb_axi_lite_slave.v    # Testbench with assertions & coverage
+├── sim/
+│   └── run.sh                 # Icarus Verilog compile & simulate script
+├── waves/
+│   └── dump.vcd               # Sample waveform output
 └── README.md
-
 ```
----
-
-## How to Run the Simulation
-### 1️⃣ Compile RTL and Testbench
-#### iverilog -o sim rtl/axi_lite_slave.v tb/tb_axi_lite.v
-
-### 2️⃣ Run Simulation
-#### vvp sim
-
-### 3️⃣ View Waveforms
-#### gtkwave waveforms/axi.vcd
-
-
-## If GTKWave opens successfully and displays valid AXI transactions — ✅ simulation passed.
 
 ---
 
-## What to Observe in GTKWave  
-- AXI Lite handshake signals (VALID, READY)  
-- Correct address decoding during read/write  
-- Register updates on write transactions  
-- Stable read data during read cycles  
-- Clean reset behavior and synchronous operation  
+## How to Simulate
+
+**Requirements:** Icarus Verilog, GTKWave (Linux/WSL)
+```bash
+# Clone the repo
+git clone https://github.com/AbishekBudihal/axi-lite-peripheral.git
+cd axi-lite-peripheral
+
+# Compile and simulate
+iverilog -o sim_out rtl/axi_lite_slave.v tb/tb_axi_lite_slave.v
+vvp sim_out
+
+# View waveforms
+gtkwave waves/dump.vcd
+```
 
 ---
 
-## Verification Summary  
-- Verified read/write functionality across multiple addresses  
-- Ensured AXI protocol compliance via handshake timing  
-- Achieved 100% functional coverage for core features  
-- Confirmed setup/hold correctness through waveform inspection  
+## AXI4-Lite Protocol — Key Concepts
+
+A transfer occurs only when both VALID and READY are high on the 
+rising clock edge. This allows the master and slave to independently 
+apply backpressure without data loss.
+```
+Write path:  Master → AW channel (address) + W channel (data)
+                    ← B channel (response from slave)
+
+Read path:   Master → AR channel (address)
+                    ← R channel (data + response from slave)
+```
+
+The slave decodes the incoming address, maps it to an internal 
+register, and responds with OKAY (2'b00) on both BRESP and RRESP 
+for valid transactions.
 
 ---
 
-## Why This Project Matters  
-- This project demonstrates:  
- - Strong understanding of SoC bus protocols  
- - Hands-on experience with RTL design and verification  
- - Comfort working in a Linux-based simulation environment  
- - Industry-relevant workflow aligned with ASIC/FPGA development  
- - It is directly applicable to VLSI, verification, and CST internship roles.  
+## Design Decisions
+
+- **Synchronous reset** chosen over asynchronous for synthesis 
+  predictability in ASIC flows
+- **Separate AR/AW acceptance** — the slave can independently accept 
+  read and write addresses, avoiding channel coupling
+- **WSTRB support** allows byte-granular writes, consistent with 
+  real register-mapped peripheral requirements
 
 ---
 
-## Future Enhancements  
-- Add AXI error responses (DECERR/SLVERR)  
-- Extend to multiple register banks  
-- Integrate assertion-based verification (SVA)  
-- Synthesize and test on FPGA  
+## Planned Extensions
+
+- [ ] UVM testbench with scoreboard and coverage groups
+- [ ] Integration into a mini SoC with UART and GPIO peripherals 
+      over an AXI interconnect
+- [ ] Vivado synthesis for LUT/FF utilization and timing report
 
 ---
 
-## Author
+## Tools Used
 
-### Abishek  
-- Electronics & Communication Engineering  
-- GitHub: https://github.com/AncientDrago  
+| Tool | Purpose |
+|------|---------|
+| Icarus Verilog | RTL simulation |
+| GTKWave | Waveform analysis |
+| Git Bash / GitHub | Version control |
 
---- 
+---
 
-## If you find this project useful, feel free to star the repository!
+## Skills Demonstrated
 
+`Verilog` `SystemVerilog` `AXI4-Lite` `AMBA Protocol` `RTL Design`  
+`Functional Verification` `Assertion-Based Verification`  
+`Functional Coverage` `Digital Design` `ASIC/FPGA`
