@@ -6,11 +6,14 @@ module axi_lite_slave #(
     input  wire                  clk,
     input  wire                  rst,
 
-    // Write address channel
-    input  wire                  awvalid,
-    input  wire [ADDR_WIDTH-1:0] awaddr,
-    output reg                   awready,
-
+    // ---- WRITE ADDRESS CHANNEL ----
+    if (awvalid && !aw_active) begin
+        awready     <= 1;
+        aw_addr_lat <= awaddr;
+        aw_active   <= 1;
+    end else begin
+        awready <= 0;
+    end
     // Write data channel
     input  wire                  wvalid,
     input  wire [DATA_WIDTH-1:0] wdata,
