@@ -1,113 +1,135 @@
 # AXI4-Lite Slave Peripheral — RTL Design & Verification
 
-A fully functional AXI4-Lite slave peripheral implemented in Verilog, 
-designed for SoC-level integration as a register-mapped IP block. 
-Includes a complete verification environment with assertion-based 
-protocol checks and functional coverage.
+A fully functional AXI4-Lite slave peripheral implemented in Verilog,
+designed for SoC-level integration as a register-mapped IP block.
+Includes a complete verification environment with constrained-random
+stimulus, assertion-based protocol checks, scoreboard, and functional
+coverage reporting.
 
 ---
 
 ## Overview
 
-AXI4-Lite is ARM's AMBA lightweight bus protocol used for control 
-register access in SoC designs — found in virtually every modern 
-ASIC and FPGA platform. This project implements the slave side of 
-the protocol from scratch, with a focus on bus compliance, clean 
+AXI4-Lite is ARM's AMBA lightweight bus protocol used for control
+register access in SoC designs — found in virtually every modern
+ASIC and FPGA platform. This project implements the slave side of
+the protocol from scratch, with a focus on bus compliance, clean
 RTL structure, and verifiability.
 
 ---
 
 ## Features
 
-**RTL Design (`axi_lite_slave.v`)**
-- All five AXI4-Lite channels: Write Address (AW), Write Data (W), 
+### RTL Design (`rtl/axi_lite_slave.v`)
+- All five AXI4-Lite channels: Write Address (AW), Write Data (W),
   Write Response (B), Read Address (AR), Read Data (R)
-- VALID/READY handshaking on every channel
-- Address decoding with a configurable register file
-- Byte-enable write strobes (WSTRB) for partial writes
+- VALID/READY handshaking on every channel per AMBA spec
+- 4-register addressable register file (word-aligned, 0x00–0x0C)
+- Byte-enable write strobes (WSTRB) for partial byte writes
+- Write address latching — AW and W channels properly decoupled
+- BRESP and RRESP response signals (OKAY = 2'b00)
 - Synchronous active-low reset
+- Parameterized DATA_WIDTH, ADDR_WIDTH, NUM_REGS
 - Structured for direct SoC integration as a register-mapped peripheral
 
-**Verification (`tb_axi_lite_slave.v`)**
-- Constrained-random stimulus across write, read, and back-to-back 
-  transaction scenarios
-- Assertion-based checks for protocol compliance 
-  (e.g., VALID must not deassert without a handshake)
-- Functional coverage: 100% across all defined transaction types
-- Setup/hold timing verification
-- Waveform-based debug using GTKWave
+### Verification (`tb/tb_axi_lite.v`)
+- Constrained-random stimulus across all 4 registers with `$random`
+- 5 directed test cases: full-word writes, readback, partial WSTRB,
+  random write/read, and back-to-back transactions
+- Assertion-based protocol checks every clock cycle:
+  - VALID stability (must not deassert before handshake)
+  - BRESP/RRESP must always return OKAY
+- Scoreboard: every read result checked against expected register state
+- Functional coverage: 10 coverage points, 100% hit across all tests
+- Waveform dump to VCD for GTKWave inspection
 
 ---
 
-## Repository Structure
+## Verification Results
+```
+TEST SUMMARY: 14 PASSED | 0 FAILED
+
+FUNCTIONAL COVERAGE REPORT
+  Write reg0       : HIT
+  Write reg1       : HIT
+  Write reg2       : HIT
+  Write reg3       : HIT
+  Read  reg0       : HIT
+  Read  reg1       : HIT
+  Read  reg2       : HIT
+  Read  reg3       : HIT
+  Partial WSTRB    : HIT
+  Back-to-back     : HIT
+  Coverage         : 10 / 10 (100%)
+```
+
+---
+
+## Project Structure
 ```
 axi-lite-peripheral/
 ├── rtl/
-│   └── axi_lite_slave.v       # AXI4-Lite slave RTL
+│   └── axi_lite_slave.v        # AXI4-Lite slave RTL
 ├── tb/
-│   └── tb_axi_lite_slave.v    # Testbench with assertions & coverage
-├── sim/
-│   └── run.sh                 # Icarus Verilog compile & simulate script
-├── waves/
-│   └── dump.vcd               # Sample waveform output
+│   └── tb_axi_lite.v           # Testbench with assertions, scoreboard & coverage
+├── waveforms/
+│   └── axi.vcd                 # Simulation waveform output
+├── sim                         # Compiled simulation binary
 └── README.md
 ```
 
 ---
 
-## How to Simulate
+## How to Run
 
-**Requirements:** Icarus Verilog, GTKWave (Linux/WSL)
+**Requirements:** Icarus Verilog, GTKWave (Linux/WSL/Windows)
 ```bash
-# Clone the repo
-git clone https://github.com/AbishekBudihal/axi-lite-peripheral.git
-cd axi-lite-peripheral
+# Compile
+iverilog -g2012 -o sim rtl/axi_lite_slave.v tb/tb_axi_lite.v
 
-# Compile and simulate
-iverilog -o sim_out rtl/axi_lite_slave.v tb/tb_axi_lite_slave.v
-vvp sim_out
+# Simulate
+vvp sim
 
 # View waveforms
-gtkwave waves/dump.vcd
+gtkwave waveforms/axi.vcd
 ```
 
 ---
 
-## AXI4-Lite Protocol — Key Concepts
-
-A transfer occurs only when both VALID and READY are high on the 
-rising clock edge. This allows the master and slave to independently 
-apply backpressure without data loss.
+## AXI4-Lite Protocol — Write & Read Flow
 ```
-Write path:  Master → AW channel (address) + W channel (data)
-                    ← B channel (response from slave)
+Write path:  Master → AW channel (address)
+             Master → W channel (data + WSTRB)
+                    ← B channel (BRESP from slave)
 
 Read path:   Master → AR channel (address)
-                    ← R channel (data + response from slave)
+                    ← R channel (data + RRESP from slave)
 ```
 
-The slave decodes the incoming address, maps it to an internal 
-register, and responds with OKAY (2'b00) on both BRESP and RRESP 
-for valid transactions.
+A transfer completes only when both VALID and READY are high
+on the rising clock edge. The slave latches the write address
+independently before accepting write data, decoupling the two
+channels per the AXI4-Lite specification.
 
 ---
 
 ## Design Decisions
 
-- **Synchronous reset** chosen over asynchronous for synthesis 
-  predictability in ASIC flows
-- **Separate AR/AW acceptance** — the slave can independently accept 
-  read and write addresses, avoiding channel coupling
-- **WSTRB support** allows byte-granular writes, consistent with 
-  real register-mapped peripheral requirements
+- **Synchronous reset** — predictable behavior in ASIC synthesis flows
+- **Address latching** — AW and W channels are decoupled; slave
+  captures address before accepting data, preventing channel coupling
+- **WSTRB support** — byte-granular writes consistent with real
+  register-mapped peripheral requirements
+- **Parameterized design** — widths and register count configurable
+  for easy reuse across different SoC contexts
 
 ---
 
 ## Planned Extensions
 
-- [ ] UVM testbench with scoreboard and coverage groups
-- [ ] Integration into a mini SoC with UART and GPIO peripherals 
-      over an AXI interconnect
+- [ ] UVM testbench with agent, driver, monitor, and scoreboard
+- [ ] AXI error responses (DECERR / SLVERR) for out-of-range addresses
+- [ ] Integration into a mini SoC with UART and GPIO over AXI interconnect
 - [ ] Vivado synthesis for LUT/FF utilization and timing report
 
 ---
@@ -118,12 +140,13 @@ for valid transactions.
 |------|---------|
 | Icarus Verilog | RTL simulation |
 | GTKWave | Waveform analysis |
-| Git Bash / GitHub | Version control |
+| Git / GitHub | Version control |
 
 ---
 
 ## Skills Demonstrated
 
-`Verilog` `SystemVerilog` `AXI4-Lite` `AMBA Protocol` `RTL Design`  
-`Functional Verification` `Assertion-Based Verification`  
-`Functional Coverage` `Digital Design` `ASIC/FPGA`
+`Verilog` `AXI4-Lite` `AMBA Protocol` `RTL Design` `FSM`
+`Functional Verification` `Assertion-Based Verification`
+`Constrained-Random Stimulus` `Functional Coverage` `Scoreboard`
+`Digital Design` `ASIC/FPGA`
