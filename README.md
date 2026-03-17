@@ -2,11 +2,10 @@
 
 ## Overview
 
-This project implements and verifies a custom **AXI4-Lite slave peripheral** using **Verilog**, focusing on industry-aligned RTL design and functional verification practices. The design supports register-based read/write transactions and is suitable for **SoC integration, ASIC/FPGA prototyping**, and learning real-world bus protocols.
-
-The project is intentionally structured to reflect **professional VLSI workflows** used in companies like Cadence:  
-**RTL design → testbench-driven verification → simulation → waveform analysis**.
-
+A fully functional AXI4-Lite slave peripheral implemented in Verilog, 
+designed for SoC-level integration as a register-mapped IP block. 
+Includes a complete verification environment with assertion-based 
+protocol checks and functional coverage.
 ---
 
 ## Objectives
