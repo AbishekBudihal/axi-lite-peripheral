@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXI4-Lite Interactive Simulator</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --green: #3fb950;
+    --green-dim: #1a4a2e;
+    --blue: #58a6ff;
+    --blue-dim: #1a2d4a;
+    --amber: #d29922;
+    --amber-dim: #3a2a0a;
+    --red: #f85149;
+    --red-dim: #3d1010;
+    --purple: #a371f7;
+    --purple-dim: #2a1a4a;
+    --teal: #39d353;
+    --font: 'Consolas', 'Monaco', 'Courier New', monospace;
+    --sans: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 40px; height: 40px; border-radius: 8px;
+    background: linear-gradient(135deg, #1f4d8a, #58a6ff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #fff;
+  }
+  .logo-text h1 { font-size: 20px; font-weight: 600; color: var(--text); font-family: var(--sans); }
+  .logo-text p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+    background: var(--green-dim); color: var(--green); border: 1px solid var(--green);
+  }
+
+  .main { display: grid; grid-template-columns: 320px 1fr; gap: 0; height: calc(100vh - 81px); }
+
+  /* Left Panel */
+  .left-panel { border-right: 1px solid var(--border); overflow-y: auto; background: var(--bg2); }
+  .panel-section { border-bottom: 1px solid var(--border); padding: 16px; }
+  .panel-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+
+  .tab-row { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab-btn {
+    flex: 1; padding: 7px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg3); color: var(--muted); font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: var(--sans);
+  }
+  .tab-btn.active { background: var(--blue-dim); color: var(--blue); border-color: var(--blue); }
+  .tab-btn:hover:not(.active) { background: var(--bg); color: var(--text); }
+
+  .form-row { margin-bottom: 10px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], select {
+    width: 100%; padding: 7px 10px; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; font-family: var(--font); font-size: 13px;
+    outline: none; transition: border-color 0.15s;
+  }
+  input[type=text]:focus, select:focus { border-color: var(--blue); }
+
+  .btn-primary {
+    width: 100%; padding: 10px; background: var(--blue); color: #000; border: none;
+    border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s; font-family: var(--sans);
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary {
+    width: 100%; padding: 8px; background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: var(--sans); margin-top: 6px;
+  }
+  .btn-secondary:hover { background: var(--bg3); color: var(--text); }
+
+  /* Register Map */
+  .reg-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font); }
+  .reg-table th { color: var(--muted); font-weight: 500; padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+  .reg-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .reg-table tr:hover td { background: var(--bg3); }
+  .reg-addr { color: var(--blue); }
+  .reg-val { color: var(--green); cursor: pointer; transition: color 0.1s; }
+  .reg-val:hover { color: var(--amber); }
+
+  /* Right Panel */
+  .right-panel { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Waveform Area */
+  .waveform-area { flex: 0 0 auto; background: var(--bg); border-bottom: 1px solid var(--border); padding: 16px; }
+  .wave-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .wave-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .cycle-badge { font-size: 11px; color: var(--muted); font-family: var(--font); }
+
+  .wave-canvas { position: relative; overflow-x: auto; }
+  #waveCanvas { display: block; }
+
+  /* Transaction Log */
+  .log-area { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg); }
+  .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .log-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .log-clear { font-size: 11px; color: var(--muted); cursor: pointer; padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; background: transparent; font-family: var(--sans); transition: all 0.15s; }
+  .log-clear:hover { color: var(--text); background: var(--bg3); }
+
+  .log-entry {
+    display: grid; grid-template-columns: 70px 60px 90px 110px 1fr;
+    gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px;
+    font-family: var(--font); font-size: 12px; align-items: center;
+    background: var(--bg2); border: 1px solid var(--border);
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .log-entry.write { border-left: 3px solid var(--amber); }
+  .log-entry.read  { border-left: 3px solid var(--blue); }
+  .log-entry.error { border-left: 3px solid var(--red); }
+  .log-cycle { color: var(--muted); }
+  .log-type-badge {
+    padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center;
+  }
+  .badge-wr { background: var(--amber-dim); color: var(--amber); }
+  .badge-rd { background: var(--blue-dim); color: var(--blue); }
+  .badge-err { background: var(--red-dim); color: var(--red); }
+  .log-addr { color: var(--purple); }
+  .log-data { color: var(--green); }
+  .log-status-ok  { color: var(--green); }
+  .log-status-err { color: var(--red); }
+
+  /* Channel Status */
+  .channels-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .ch-card {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  }
+  .ch-name { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ch-signals { display: flex; flex-direction: column; gap: 3px; }
+  .sig-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-family: var(--font); }
+  .sig-name { color: var(--muted); }
+  .sig-val { font-weight: 500; }
+  .val-1 { color: var(--green); }
+  .val-0 { color: var(--red); }
+  .val-x { color: var(--muted); }
+  .val-hex { color: var(--blue); }
+
+  /* Handshake visualizer */
+  .handshake-vis { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .hs-title { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .hs-flow { display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: var(--font); }
+  .hs-block {
+    padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--muted); transition: all 0.2s; text-align: center;
+    min-width: 60px;
+  }
+  .hs-block.active { color: var(--green); border-color: var(--green); background: var(--green-dim); }
+  .hs-block.waiting { color: var(--amber); border-color: var(--amber); background: var(--amber-dim); }
+  .hs-arrow { color: var(--muted); font-size: 16px; transition: color 0.2s; }
+  .hs-arrow.active { color: var(--green); }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center; }
+  .stat-val { font-size: 22px; font-weight: 600; font-family: var(--font); color: var(--text); }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-val.s-write { color: var(--amber); }
+  .stat-val.s-read  { color: var(--blue); }
+  .stat-val.s-cycle { color: var(--purple); }
+  .stat-val.s-cov   { color: var(--green); }
+
+  /* Coverage */
+  .cov-row { margin-bottom: 6px; }
+  .cov-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+  .cov-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .cov-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+  /* Scenario buttons */
+  .scenario-btn {
+    display: block; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 4px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 12px; cursor: pointer; transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .scenario-btn:hover { background: var(--bg); border-color: var(--blue); }
+  .scenario-btn span { color: var(--muted); font-size: 11px; margin-left: 6px; }
+
+  /* Animation pulse */
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .pulsing { animation: pulse 0.8s ease-in-out 3; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">AXI</div>
+    <div class="logo-text">
+      <h1>AXI4-Lite Peripheral Simulator</h1>
+      <p>RTL Verification &amp; Protocol Visualization — AMBA AXI4-Lite Slave</p>
+    </div>
+  </div>
+  <div class="badge">● SIMULATION READY</div>
+</header>
+
+<div class="main">
+  <!-- Left Panel -->
+  <div class="left-panel">
+    <!-- Transaction Control -->
+    <div class="panel-section">
+      <div class="panel-title">Transaction Control</div>
+      <div class="tab-row">
+        <button class="tab-btn active" id="tab-write" onclick="setTab('write')">AW/W/B Write</button>
+        <button class="tab-btn" id="tab-read" onclick="setTab('read')">AR/R Read</button>
+      </div>
+
+      <div id="write-form">
+        <div class="form-row">
+          <label>AWADDR — Write Address</label>
+          <select id="awaddr">
+            <option value="0x00">0x00 — CTRL_REG</option>
+            <option value="0x04">0x04 — STATUS_REG</option>
+            <option value="0x08">0x08 — DATA_REG</option>
+            <option value="0x0C">0x0C — IRQ_REG</option>
+            <option value="0x10">0x10 — CONFIG_REG</option>
+            <option value="0x14">0x14 — SCRATCH_REG</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>WDATA — Write Data (32-bit hex)</label>
+          <input type="text" id="wdata" value="0xDEADBEEF" placeholder="0xXXXXXXXX">
+        </div>
+        <div class="form-row">
+          <label>WSTRB — Write Strobe (byte enable)</label>
+          <select id="wstrb">
+            <option value="0xF">0xF — All 4 bytes (full word)</option>
+            <option value="0x3">0x3 — Lower 2 bytes only</option>
+            <option value="0x1">0x1 — Byte 0 only</option>
+            <option value="0xC">0xC — Upper 2 bytes only</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Handshake Delay (READY cycles)</label>
+          <select id="wdelay">
+            <option value="0">0 — Immediate (READY always high)</option>
+            <option value="1">1 — 1 cycle delay</option>
+            <option value="2">2 — 2 cycle delay</option>
+            <option value="3">3 — 3 cycle delay</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="doWrite()">▶ Execute Write Transaction</button>
+        <button class="btn-secondary" onclick="randomWrite()">⟳ Random Write</button>
+      </div>
+
+      <div id="read-form" style="display:none">
+        <div class="form-row">
+          <label>ARADDR — Read Address</label>
+          <select id="araddr">
+            <option value="0x00">0x00 — CTRL_REG</option>
+            <option value="0x04">0x04 — STATUS_REG</option>
+            <option value="0x08">0x08 — DATA_REG</option>
+            <option value="0x0C">0x0C — IRQ_REG</option>
+            <option value="0x10">0x10 — CONFIG_REG</option>
+            <option value="0x14">0x14 — SCRATCH_REG</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Handshake Delay (READY cycles)</label>
+          <select id="rdelay">
+            <option value="0">0 — Immediate</option>
+            <option value="1">1 — 1 cycle delay</option>
+            <option value="2">2 — 2 cycle delay</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="doRead()">▶ Execute Read Transaction</button>
+        <button class="btn-secondary" onclick="randomRead()">⟳ Random Read</button>
+      </div>
+    </div>
+
+    <!-- Scenarios -->
+    <div class="panel-section">
+      <div class="panel-title">Demo Scenarios</div>
+      <button class="scenario-btn" onclick="runScenario('burst')">Burst Write → Read-back <span>all 6 registers</span></button>
+      <button class="scenario-btn" onclick="runScenario('partial')">Partial Write (WSTRB) <span>byte-lane test</span></button>
+      <button class="scenario-btn" onclick="runScenario('wait')">Handshake Wait States <span>VALID before READY</span></button>
+      <button class="scenario-btn" onclick="runScenario('coverage')">Full Coverage Run <span>all transaction types</span></button>
+    </div>
+
+    <!-- Register Map -->
+    <div class="panel-section">
+      <div class="panel-title">Register File (Live)</div>
+      <table class="reg-table">
+        <thead><tr><th>Addr</th><th>Name</th><th>Value</th><th>Width</th></tr></thead>
+        <tbody id="reg-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Coverage -->
+    <div class="panel-section">
+      <div class="panel-title">Functional Coverage</div>
+      <div id="cov-bars"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val s-write" id="stat-writes">0</div><div class="stat-lbl">Write Txns</div></div>
+      <div class="stat-card"><div class="stat-val s-read" id="stat-reads">0</div><div class="stat-lbl">Read Txns</div></div>
+      <div class="stat-card"><div class="stat-val s-cycle" id="stat-cycles">0</div><div class="stat-lbl">Clock Cycles</div></div>
+      <div class="stat-card"><div class="stat-val s-cov" id="stat-cov">0%</div><div class="stat-lbl">Coverage</div></div>
+    </div>
+
+    <!-- Waveform -->
+    <div class="waveform-area">
+      <div class="wave-header">
+        <div class="wave-title">Signal Waveform — Last 16 Cycles</div>
+        <div class="cycle-badge" id="cycle-badge">Cycle: 0</div>
+      </div>
+      <div class="wave-canvas">
+        <canvas id="waveCanvas" width="700" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Channel Status & Handshake -->
+    <div style="padding:12px 16px; border-bottom: 1px solid var(--border); background: var(--bg2);">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <!-- Channel signals -->
+        <div>
+          <div class="panel-title" style="margin-bottom:8px">AXI Channel Signals</div>
+          <div class="channels-grid" style="grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:0">
+            <div class="ch-card" id="ch-aw"><div class="ch-name">AW (Addr Write)</div><div class="ch-signals" id="sigs-aw"></div></div>
+            <div class="ch-card" id="ch-w"><div class="ch-name">W (Write Data)</div><div class="ch-signals" id="sigs-w"></div></div>
+            <div class="ch-card" id="ch-b"><div class="ch-name">B (Write Resp)</div><div class="ch-signals" id="sigs-b"></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="panel-title" style="margin-bottom:8px">Handshake State Machine</div>
+          <div class="handshake-vis" style="margin-bottom:0">
+            <div class="hs-title" id="hs-desc">Idle — awaiting transaction</div>
+            <div class="hs-flow" id="hs-flow">
+              <div class="hs-block" id="hs-m">Master</div>
+              <div class="hs-arrow" id="hs-a1">→</div>
+              <div class="hs-block" id="hs-v">VALID</div>
+              <div class="hs-arrow" id="hs-a2">→</div>
+              <div class="hs-block" id="hs-r">READY</div>
+              <div class="hs-arrow" id="hs-a3">→</div>
+              <div class="hs-block" id="hs-s">Slave</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transaction Log -->
+    <div class="log-area">
+      <div class="log-header">
+        <div class="log-title">Transaction Log</div>
+        <button class="log-clear" onclick="clearLog()">Clear</button>
+      </div>
+      <div style="display:grid;grid-template-columns:70px 60px 90px 110px 1fr;gap:8px;padding:0 8px 6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">
+        <span>Cycle</span><span>Type</span><span>Address</span><span>Data</span><span>Status</span>
+      </div>
+      <div id="log-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- State ----
+const REG_MAP = [
+  { addr: '0x00', name: 'CTRL_REG',    val: 0x00000000, desc: 'Control' },
+  { addr: '0x04', name: 'STATUS_REG',  val: 0x00000001, desc: 'Status' },
+  { addr: '0x08', name: 'DATA_REG',    val: 0x00000000, desc: 'Data' },
+  { addr: '0x0C', name: 'IRQ_REG',     val: 0x00000000, desc: 'Interrupt' },
+  { addr: '0x10', name: 'CONFIG_REG',  val: 0xA5000000, desc: 'Config' },
+  { addr: '0x14', name: 'SCRATCH_REG', val: 0xDEADBEEF, desc: 'Scratch' },
+];
+
+let cycle = 0, writes = 0, reads = 0;
+let waveData = []; // {cycle, signals: {AWVALID,AWREADY,WVALID,WREADY,BVALID,BREADY,ARVALID,ARREADY,RVALID,RREADY}}
+const SIG_NAMES = ['AWVALID','AWREADY','WVALID','WREADY','BVALID','BREADY','ARVALID','ARREADY','RVALID','RREADY'];
+
+let coverage = {
+  'Write OKAY response':   { hits: 0, goal: 3 },
+  'Read OKAY response':    { hits: 0, goal: 3 },
+  'Partial WSTRB':         { hits: 0, goal: 2 },
+  'Handshake wait state':  { hits: 0, goal: 2 },
+  'All 6 registers hit':   { hits: 0, goal: 6 },
+  'Full word write (0xF)': { hits: 0, goal: 2 },
+};
+let regsHit = new Set();
+
+// ---- Init ----
+function init() {
+  renderRegTable();
+  renderCovBars();
+  renderWaveform();
+  renderChannelSignals({});
+  updateStats();
+  addLog(0, 'INFO', '-', '-', '✓ AXI4-Lite Slave peripheral initialized. Reset complete.');
+}
+
+function setTab(t) {
+  document.getElementById('write-form').style.display = t === 'write' ? '' : 'none';
+  document.getElementById('read-form').style.display  = t === 'read'  ? '' : 'none';
+  document.getElementById('tab-write').classList.toggle('active', t === 'write');
+  document.getElementById('tab-read').classList.toggle('active', t === 'read');
+}
+
+// ---- Register Table ----
+function renderRegTable() {
+  const tbody = document.getElementById('reg-tbody');
+  tbody.innerHTML = REG_MAP.map((r, i) =>
+    `<tr>
+      <td class="reg-addr">${r.addr}</td>
+      <td style="color:var(--muted);font-size:11px">${r.name}</td>
+      <td class="reg-val" id="rv-${i}" onclick="readReg(${i})">${hex(r.val)}</td>
+      <td style="color:var(--muted)">32</td>
+    </tr>`
+  ).join('');
+}
+
+function hex(v, w=8) { return '0x' + (v >>> 0).toString(16).toUpperCase().padStart(w, '0'); }
+
+function readReg(i) {
+  const r = REG_MAP[i];
+  const addr = r.addr;
+  doReadAddr(addr, parseInt(addr, 16), r.val);
+}
+
+// ---- Write Transaction ----
+function doWrite() {
+  const addr = document.getElementById('awaddr').value;
+  const dataStr = document.getElementById('wdata').value.trim();
+  const strb = document.getElementById('wstrb').value;
+  const delay = parseInt(document.getElementById('wdelay').value);
+
+  let data = parseInt(dataStr, 16);
+  if (isNaN(data)) { alert('Invalid hex data'); return; }
+
+  executeWrite(addr, parseInt(addr, 16), data, parseInt(strb, 16), delay);
+}
+
+function executeWrite(addrStr, addrInt, data, strb, delay) {
+  const startCycle = cycle;
+  // Channel phases: AW (1), W (1+delay), B (1)
+  const phases = [];
+
+  // AW phase
+  phases.push({ c: cycle, sigs: { AWVALID:1, AWREADY: delay>0?0:1, WVALID:0, WREADY:0, BVALID:0, BREADY:0, ARVALID:0, ARREADY:0, RVALID:0, RREADY:0 } });
+  cycle++;
+
+  if (delay > 0) {
+    for (let i = 0; i < delay; i++) {
+      phases.push({ c: cycle, sigs: { AWVALID:1, AWREADY:0, WVALID:1, WREADY:0, BVALID:0, BREADY:0, ARVALID:0, ARREADY:0, RVALID:0, RREADY:0 } });
+      cycle++;
+    }
+    coverage['Handshake wait state'].hits = Math.min(coverage['Handshake wait state'].hits + 1, 2);
+  }
+
+  // AW + W accepted
+  phases.push({ c: cycle, sigs: { AWVALID:1, AWREADY:1, WVALID:1, WREADY:1, BVALID:0, BREADY:0, ARVALID:0, ARREADY:0, RVALID:0, RREADY:0 } });
+  cycle++;
+
+  // B phase
+  phases.push({ c: cycle, sigs: { AWVALID:0, AWREADY:0, WVALID:0, WREADY:0, BVALID:1, BREADY:1, ARVALID:0, ARREADY:0, RVALID:0, RREADY:0 } });
+  cycle++;
+
+  // Idle
+  phases.push({ c: cycle, sigs: { AWVALID:0, AWREADY:0, WVALID:0, WREADY:0, BVALID:0, BREADY:0, ARVALID:0, ARREADY:0, RVALID:0, RREADY:0 } });
+  cycle++;
+
+  waveData.push(...phases);
+  if (waveData.length > 30) waveData = waveData.slice(-30);
+
+  // Apply WSTRB
+  const idx = REG_MAP.findIndex(r => parseInt(r.addr, 16) === addrInt);
+  if (idx >= 0) {
+    let cur = REG_MAP[idx].val;
+    if (strb & 0x1) cur = (cur & 0xFFFFFF00) | (data & 0x000000FF);
+    if (strb & 0x2) cur = (cur & 0xFFFF00FF) | (data & 0x0000FF00);
+    if (strb & 0x4) cur = (cur & 0xFF00FFFF) | (data & 0x00FF0000);
+    if (strb & 0x8) cur = (cur & 0x00FFFFFF) | (data & 0xFF000000);
+    REG_MAP[idx].val = cur >>> 0;
+    // Flash
+    const el = document.getElementById('rv-' + idx);
+    if (el) { el.textContent = hex(REG_MAP[idx].val); el.classList.add('pulsing'); setTimeout(() => el.classList.remove('pulsing'), 1200); }
+    regsHit.add(addrStr);
+    coverage['All 6 registers hit'].hits = regsHit.size;
+  }
+
+  writes++;
+  coverage['Write OKAY response'].hits = Math.min(coverage['Write OKAY response'].hits + 1, 3);
+  if (strb === 0xF) coverage['Full word write (0xF)'].hits = Math.min(coverage['Full word write (0xF)'].hits + 1, 2);
+  if (strb !== 0xF) coverage['Partial WSTRB'].hits = Math.min(coverage['Partial WSTRB'].hits + 1, 2);
+
+  const strbNote = strb !== 0xF ? ` [WSTRB=0x${strb.toString(16).toUpperCase()} partial]` : '';
+  addLog(startCycle, 'WRITE', addrStr, hex(data), `✓ OKAY — BRESP=00${strbNote}`);
+  animateHandshake('write', delay);
+  renderRegTable(); renderWaveform(); renderCovBars(); updateStats();
+}
+
+// ---- Read Transaction ----
+function doRead() {
+  const addr = document.getElementById('araddr').value;
+  const delay = parseInt(document.getElementById('rdelay').value);
+  const addrInt = parseInt(addr, 16);
+  const idx = REG_MAP.findIndex(r => parseInt(r.addr, 16) === addrInt);
+  const rdata = idx >= 0 ? REG_MAP[idx].val : 0xBAADF00D;
+  doReadAddr(addr, addrInt, rdata, delay);
+}
+
+function doReadAddr(addrStr, addrInt, rdata, delay = 0) {
+  const startCycle = cycle;
+  const phases = [];
+
+  phases.push({ c: cycle, sigs: { AWVALID:0, AWREADY:0, WVALID:0, WREADY:0, BVALID:0, BREADY:0, ARVALID:1, ARREADY: delay>0?0:1, RVALID:0, RREADY:0 } });
+  cycle++;
+
+  if (delay > 0) {
+    for (let i = 0; i < delay; i++) {
+      phases.push({ c: cycle, sigs: { AWVALID:0, AWREADY:0, WVALID:0, WREADY:0, BVALID:0, BREADY:0, ARVALID:1, ARREADY:0, RVALID:0, RREADY:0 } });
+      cycle++;
+    }
+  }
+
+  phases.push({ c: cycle, sigs: { AWVALID:0, AWREADY:0, WVALID:0, WREADY:0, BVALID:0, BREADY:0, ARVALID:1, ARREADY:1, RVALID:1, RREADY:1 } });
+  cycle++;
+
+  phases.push({ c: cycle, sigs: { AWVALID:0, AWREADY:0, WVALID:0, WREADY:0, BVALID:0, BREADY:0, ARVALID:0, ARREADY:0, RVALID:0, RREADY:0 } });
+  cycle++;
+
+  waveData.push(...phases);
+  if (waveData.length > 30) waveData = waveData.slice(-30);
+
+  reads++;
+  coverage['Read OKAY response'].hits = Math.min(coverage['Read OKAY response'].hits + 1, 3);
+  regsHit.add(addrStr);
+  coverage['All 6 registers hit'].hits = regsHit.size;
+
+  addLog(startCycle, 'READ', addrStr, hex(rdata), '✓ OKAY — RRESP=00');
+  animateHandshake('read', delay);
+  renderWaveform(); renderCovBars(); updateStats();
+}
+
+function randomWrite() {
+  const addrs = ['0x00','0x04','0x08','0x0C','0x10','0x14'];
+  const strbs = [0xF, 0x3, 0x1, 0xC];
+  document.getElementById('awaddr').value = addrs[Math.floor(Math.random()*addrs.length)];
+  document.getElementById('wdata').value = hex(Math.floor(Math.random() * 0xFFFFFFFF));
+  document.getElementById('wstrb').value = '0x' + strbs[Math.floor(Math.random()*strbs.length)].toString(16);
+  doWrite();
+}
+function randomRead() {
+  const addrs = ['0x00','0x04','0x08','0x0C','0x10','0x14'];
+  document.getElementById('araddr').value = addrs[Math.floor(Math.random()*addrs.length)];
+  doRead();
+}
+
+// ---- Scenarios ----
+async function runScenario(type) {
+  if (type === 'burst') {
+    for (const r of REG_MAP) {
+      executeWrite(r.addr, parseInt(r.addr,16), Math.floor(Math.random()*0xFFFFFFFF), 0xF, 0);
+      await sleep(120);
+    }
+    for (const r of REG_MAP) { doReadAddr(r.addr, parseInt(r.addr,16), REG_MAP[REG_MAP.findIndex(x=>x.addr===r.addr)].val); await sleep(100); }
+  } else if (type === 'partial') {
+    executeWrite('0x08', 0x08, 0xABCD1234, 0x3, 0);
+    await sleep(150);
+    executeWrite('0x08', 0x08, 0xFFFF0000, 0xC, 0);
+    await sleep(150);
+    doReadAddr('0x08', 0x08, REG_MAP[2].val);
+  } else if (type === 'wait') {
+    executeWrite('0x00', 0x00, 0x00000001, 0xF, 2);
+    await sleep(200);
+    executeWrite('0x10', 0x10, 0xCAFEBABE, 0xF, 3);
+    await sleep(200);
+    const r = document.getElementById('rdelay'); r.value = '2';
+    doRead();
+  } else if (type === 'coverage') {
+    // Writes to all 6
+    for (let i=0;i<REG_MAP.length;i++) {
+      executeWrite(REG_MAP[i].addr, parseInt(REG_MAP[i].addr,16), 0x10000000+i, 0xF, 0);
+      await sleep(80);
+    }
+    executeWrite('0x08', 0x08, 0x000000AB, 0x1, 1);
+    await sleep(100);
+    for (const r of REG_MAP) { doReadAddr(r.addr, parseInt(r.addr,16), REG_MAP[REG_MAP.findIndex(x=>x.addr===r.addr)].val); await sleep(80); }
+  }
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ---- Waveform Canvas ----
+function renderWaveform() {
+  const canvas = document.getElementById('waveCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const SIGNALS = ['AWVALID','AWREADY','WVALID','WREADY','BVALID','BREADY','ARVALID','ARREADY','RVALID','RREADY'];
+  const COLORS  = ['#d29922','#f0b429','#58a6ff','#a0c4ff','#a371f7','#c4a0f7','#3fb950','#7ee787','#f85149','#ffa198'];
+  const LABELS  = SIGNALS;
+  const ROW_H = 16, LABEL_W = 70, TOP = 20, BOTTOM = H - 10;
+  const data = waveData.slice(-16);
+  const N = Math.max(data.length, 1);
+  const colW = (W - LABEL_W - 10) / 16;
+
+  // Background grid
+  ctx.fillStyle = '#161b22';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 16; i++) {
+    const x = LABEL_W + i * colW;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+
+  // Cycle numbers
+  ctx.fillStyle = '#7d8590';
+  ctx.font = '9px Consolas, monospace';
+  ctx.textAlign = 'center';
+  for (let i = 0; i < data.length; i++) {
+    ctx.fillText(data[i].c, LABEL_W + i * colW + colW / 2, 12);
+  }
+
+  // Signals
+  SIGNALS.forEach((sig, si) => {
+    const y = TOP + si * ROW_H + ROW_H - 4;
+    ctx.fillStyle = '#7d8590';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(LABELS[si], LABEL_W - 4, y);
+
+    ctx.strokeStyle = COLORS[si];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+
+    let lastVal = -1;
+    for (let i = 0; i <= data.length; i++) {
+      const val = i < data.length ? (data[i].sigs[sig] || 0) : lastVal;
+      const x = LABEL_W + i * colW;
+      const yHigh = TOP + si * ROW_H + 2;
+      const yLow  = TOP + si * ROW_H + ROW_H - 2;
+      const yVal  = val ? yHigh : yLow;
+      if (i === 0) { ctx.moveTo(x, yVal); }
+      else {
+        const prevVal = data[i-1].sigs[sig] || 0;
+        if (val !== prevVal) {
+          const prevY = prevVal ? yHigh : yLow;
+          ctx.lineTo(x, prevY);
+          ctx.lineTo(x, yVal);
+        } else {
+          ctx.lineTo(x, yVal);
+        }
+      }
+      lastVal = val;
+    }
+    ctx.stroke();
+
+    // Fill high regions
+    ctx.fillStyle = COLORS[si] + '28';
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const val = data[i].sigs[sig] || 0;
+      if (val) {
+        const x1 = LABEL_W + i * colW;
+        const x2 = x1 + colW;
+        ctx.fillRect(x1, TOP + si * ROW_H + 2, x2-x1, ROW_H - 4);
+      }
+    }
+    ctx.fill();
+  });
+
+  document.getElementById('cycle-badge').textContent = `Cycle: ${cycle}`;
+}
+
+// ---- Channel Signal Cards ----
+function renderChannelSignals(sigs) {
+  const awSigs = [['AWVALID', sigs.AWVALID], ['AWREADY', sigs.AWREADY], ['AWADDR', sigs.AWADDR || '-']];
+  const wSigs  = [['WVALID',  sigs.WVALID],  ['WREADY',  sigs.WREADY],  ['WSTRB',  sigs.WSTRB  || '-']];
+  const bSigs  = [['BVALID',  sigs.BVALID],  ['BREADY',  sigs.BREADY],  ['BRESP',  sigs.BRESP  || '00']];
+
+  function renderSig(name, val) {
+    let cls = 'val-x', disp = val == null ? 'X' : String(val);
+    if (val === 1) { cls = 'val-1'; disp = '1'; }
+    else if (val === 0) { cls = 'val-0'; disp = '0'; }
+    else if (typeof val === 'string' && val !== '-') cls = 'val-hex';
+    return `<div class="sig-row"><span class="sig-name">${name}</span><span class="sig-val ${cls}">${disp}</span></div>`;
+  }
+  document.getElementById('sigs-aw').innerHTML = awSigs.map(([n,v]) => renderSig(n,v)).join('');
+  document.getElementById('sigs-w').innerHTML  = wSigs.map(([n,v]) => renderSig(n,v)).join('');
+  document.getElementById('sigs-b').innerHTML  = bSigs.map(([n,v]) => renderSig(n,v)).join('');
+}
+
+// ---- Handshake Animation ----
+function animateHandshake(type, delay) {
+  const m = document.getElementById('hs-m');
+  const v = document.getElementById('hs-v');
+  const r = document.getElementById('hs-r');
+  const s = document.getElementById('hs-s');
+  const a1 = document.getElementById('hs-a1');
+  const a2 = document.getElementById('hs-a2');
+  const a3 = document.getElementById('hs-a3');
+  const desc = document.getElementById('hs-desc');
+
+  function reset() { [m,v,r,s].forEach(el => el.classList.remove('active','waiting')); [a1,a2,a3].forEach(el => el.classList.remove('active')); }
+  reset();
+
+  const T = 300;
+  const label = type === 'write' ? 'Write' : 'Read';
+  desc.textContent = `${label}: Master asserts VALID`;
+  m.classList.add('active'); a1.classList.add('active'); v.classList.add('active');
+
+  setTimeout(() => {
+    if (delay > 0) {
+      desc.textContent = `${label}: Slave READY delayed (${delay} cycles)`;
+      v.classList.remove('active'); v.classList.add('waiting');
+    } else {
+      desc.textContent = `${label}: Slave asserts READY → Handshake!`;
+      a2.classList.add('active'); r.classList.add('active'); a3.classList.add('active'); s.classList.add('active');
+    }
+  }, T);
+  setTimeout(() => {
+    desc.textContent = `${label}: Handshake complete — data transferred`;
+    reset(); [m,v,r,s,a1,a2,a3].forEach(el => el.classList.add('active'));
+  }, T * (2 + delay));
+  setTimeout(() => {
+    reset(); desc.textContent = 'Idle — awaiting transaction';
+  }, T * (4 + delay));
+
+  // Update last cycle signals
+  const lastPhase = waveData[waveData.length - 2];
+  if (lastPhase) renderChannelSignals(lastPhase.sigs);
+}
+
+// ---- Log ----
+function addLog(c, type, addr, data, status) {
+  const container = document.getElementById('log-container');
+  const typeClass = type === 'WRITE' ? 'write' : type === 'READ' ? 'read' : '';
+  const badgeClass = type === 'WRITE' ? 'badge-wr' : type === 'READ' ? 'badge-rd' : '';
+  const isOk = status.includes('✓');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${typeClass}`;
+  entry.innerHTML = `
+    <span class="log-cycle">${c}</span>
+    <span class="log-type-badge ${badgeClass}">${type}</span>
+    <span class="log-addr">${addr}</span>
+    <span class="log-data">${data}</span>
+    <span class="${isOk ? 'log-status-ok' : 'log-status-err'}">${status}</span>
+  `;
+  container.prepend(entry);
+}
+
+function clearLog() {
+  document.getElementById('log-container').innerHTML = '';
+}
+
+// ---- Coverage Bars ----
+function renderCovBars() {
+  const total_hits = Object.values(coverage).reduce((s,v) => s + v.hits, 0);
+  const total_goal = Object.values(coverage).reduce((s,v) => s + v.goal, 0);
+  const pct = Math.round((total_hits / total_goal) * 100);
+  document.getElementById('stat-cov').textContent = pct + '%';
+
+  const COLORS_MAP = {
+    'Write OKAY response':   '#d29922',
+    'Read OKAY response':    '#58a6ff',
+    'Partial WSTRB':         '#a371f7',
+    'Handshake wait state':  '#3fb950',
+    'All 6 registers hit':   '#f0b429',
+    'Full word write (0xF)': '#39c5cf',
+  };
+  document.getElementById('cov-bars').innerHTML = Object.entries(coverage).map(([name, {hits, goal}]) => {
+    const p = Math.round((Math.min(hits, goal) / goal) * 100);
+    const col = COLORS_MAP[name] || '#58a6ff';
+    return `<div class="cov-row">
+      <div class="cov-label">
+        <span style="font-size:11px;color:var(--muted)">${name}</span>
+        <span style="font-size:11px;color:${col}">${hits}/${goal}</span>
+      </div>
+      <div class="cov-bar"><div class="cov-fill" style="width:${p}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Stats ----
+function updateStats() {
+  document.getElementById('stat-writes').textContent = writes;
+  document.getElementById('stat-reads').textContent  = reads;
+  document.getElementById('stat-cycles').textContent = cycle;
+}
+
+init();
+</script>
+</body>
+</html>
